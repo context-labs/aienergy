@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { Loader2, DollarSign, Leaf, Settings, BarChart3, AlertCircle } from "lucide-react"
+import Latex from "react-latex-next"
 
 interface ModelData {
   name: string
@@ -479,28 +480,29 @@ export default function AIEmissionsCalculator() {
           </Card>
         </div>
 
-        {/* Research Info Footer */}
+        {/* Import 'katex/dist/katex.min.css' at the top-level of your app, e.g. in _app.tsx or layout.tsx */}
         <Card className="mt-8 border border-color-7 bg-color-2">
           <CardContent className="p-6">
-            <h3 className="font-semibold text-foreground mb-3">Research-Based Methodology</h3>
+            <h3 className="font-semibold text-foreground mb-3">Calculation Methodology</h3>
             <div className="text-sm text-muted-foreground space-y-2">
-              <p>
-                <strong>Energy Calculation:</strong> Uses FLOP-based analysis where each token requires ~2 FLOPs per
-                model parameter. Energy consumption is calculated as: E = (2 × N_params × T) / η, where η is hardware
-                efficiency in FLOPs/Joule.
-              </p>
-              <p>
-                <strong>Carbon Emissions:</strong> Calculated as E_kWh × I_grid, where I_grid is the region-specific
-                carbon intensity in kg CO₂/kWh. Geographic variation accounts for different energy mixes (renewable vs.
-                fossil fuels).
-              </p>
-              <p>
-                <strong>Hardware Assumptions:</strong> Based on NVIDIA H100 specifications (~6.59×10¹¹ FLOPs/Joule
-                conservative estimate). Precision improvements (FP16/FP8) increase efficiency by 2x/4x respectively.
-              </p>
-              <p className="text-xs mt-3 text-muted-foreground">
+              <Latex>
+                {
+                  "\\textbf{Energy Calculation:} Uses FLOP-based analysis where each token requires approximately 2 FLOPs per model parameter. Energy consumption is calculated as: \\\\ \n" +
+                  "$E = \\frac{2 \\times N_{\\text{params}} \\times T}{\\eta}$, where $\\eta$ is hardware efficiency in FLOPs/Joule."
+                }
+              </Latex>
+              <Latex>
+                {
+                  "\\textbf{Carbon Emissions:} Calculated as $E_{\\text{kWh}} \\times I_{\\text{grid}}$, where $I_{\\text{grid}}$ is the region-specific carbon intensity in kg CO$_2$/kWh. Geographic variation accounts for different energy mixes (renewable vs. fossil fuels)."
+                }
+              </Latex>
+              </Latex>
+              <Latex>
+                {"\\textbf{Hardware Assumptions:} Based on NVIDIA H100 specifications (\\(\\sim 6.59 \\times 10^{11}\\) FLOPs/Joule conservative estimate). Precision improvements (FP16/FP8) increase efficiency by 2x/4x respectively."}
+              </Latex>
+              <span className="text-xs mt-3 text-muted-foreground">
                 Sources: Hopper et al. (2023), Özcan et al. (2023)
-              </p>
+              </span>
             </div>
           </CardContent>
         </Card>
