@@ -483,25 +483,28 @@ export default function AIEmissionsCalculator() {
         {/* Import 'katex/dist/katex.min.css' at the top-level of your app, e.g. in _app.tsx or layout.tsx */}
         <Card className="mt-8 border border-color-7 bg-color-2">
           <CardContent className="p-6">
-            <h3 className="font-semibold text-foreground mb-3">Calculation Methodology</h3>
+            <h3 className="font-semibold text-foreground mb-3">
+              Calculation Methodology
+            </h3>
             <div className="text-sm text-muted-foreground space-y-2">
               <p>
-                <strong>Energy Calculation:</strong> Uses FLOP-based analysis where each token requires approximately
-                2 FLOPs per model parameter. Energy consumption is calculated as:
-                <Latex>{"$E = \\frac{2 \\times N_{params} \\times T}{\\eta}$"}</Latex>, where η is hardware efficiency
-                in FLOPs/Joule.
+                <strong>Energy Calculation:</strong>{" "}
+                Uses FLOP-based analysis where each token requires approximately 2 FLOPs per model parameter.
+                Energy consumption is calculated as:{" "}
+                <Latex>{"$E = \\frac{2 \\times N_{params} \\times T}{\\eta}$"}</Latex>,
+                where η is hardware efficiency in FLOPs/Joule.
               </p>
               <p>
-                <strong>Carbon Emissions:</strong> Calculated as <Latex>{"$E_{kWh} \\times I_{grid}$"}</Latex>, where
-                I<sub>grid</sub> is the region-specific carbon intensity in kg CO₂/kWh. Geographic variation accounts
-                for different energy mixes (renewable vs. fossil fuels).
+                <strong>Carbon Emissions:</strong>{" "}
+                Calculated as <Latex>{"$E_{kWh} \\times I_{grid}$"}</Latex>, where I<sub>grid</sub> is the region-specific carbon intensity in kg CO₂/kWh.
+                Geographic variation accounts for different energy mixes (renewable vs. fossil fuels).
               </p>
               <p>
-                <strong>Hardware Assumptions:</strong> Based on NVIDIA H100 specifications (~<Latex>{"$6.59 \\times 10^{11}$"}</Latex>
-                FLOPs/Joule conservative estimate). Precision improvements (FP16/FP8) increase efficiency by 2×/4×
-                respectively.
+                <strong>Hardware Assumptions:</strong>{" "}
+                Based on NVIDIA H100 specifications (~<Latex>{"$6.59 \\times 10^{11}$"}</Latex> FLOPs/Joule, conservative estimate).
+                Precision improvements (FP16/FP8) increase efficiency by 2×/4× respectively.
               </p>
-              <span className="text-xs mt-3 text-muted-foreground">
+              <span className="text-xs mt-3 text-muted-foreground block">
                 Sources: Hopper et al. (2023), Özcan et al. (2023)
               </span>
             </div>
