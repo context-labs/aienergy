@@ -1,103 +1,510 @@
-import Image from "next/image";
+"use client"
 
-export default function Home() {
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { Slider } from "@/components/ui/slider"
+import { Input } from "@/components/ui/input"
+import { ModelCombobox } from "@/components/model-combobox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
+import { Loader2, DollarSign, Leaf, Settings, BarChart3, AlertCircle } from "lucide-react"
+
+interface ModelData {
+  name: string
+  parameters_in_billions: number
+  emissions_per_token_kWh: number
+}
+
+interface RegionData {
+  name: string
+  carbonIntensity: number // kg CO2/kWh
+}
+
+const regions: RegionData[] = [
+  { name: "Iceland (Renewable Heavy)", carbonIntensity: 0.028 },
+  { name: "Norway (Hydroelectric)",      carbonIntensity: 0.032 },
+  { name: "France (Nuclear Heavy)",      carbonIntensity: 0.027 },
+  { name: "Sweden (Mixed Renewable)",    carbonIntensity: 0.039 },
+  { name: "Canada (Mixed)",              carbonIntensity: 0.137 },
+  { name: "Google europe-north1",        carbonIntensity: 0.088 }, // Finland grid
+  { name: "Brazil (Hydro Heavy)",        carbonIntensity: 0.103 },
+  { name: "United Kingdom",              carbonIntensity: 0.237 },
+  { name: "United States (Average)",     carbonIntensity: 0.345 },
+  { name: "Google us-central1",          carbonIntensity: 0.243 }, // Iowa grid
+  { name: "Japan",                       carbonIntensity: 0.463 },
+  { name: "Germany",                     carbonIntensity: 0.321 },
+  { name: "China (Coal Heavy)",          carbonIntensity: 0.510 },
+  { name: "India (Coal Heavy)",          carbonIntensity: 0.636 },
+  { name: "Australia (Coal Heavy)",      carbonIntensity: 0.482 },
+  { name: "South Africa (Coal Heavy)",   carbonIntensity: 0.687 },
+];
+
+export default function AIEmissionsCalculator() {
+  const [models, setModels] = useState<ModelData[]>([])
+  // removed filteredModels and searchQuery; we will rely on combobox internal search
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedModel, setSelectedModel] = useState<ModelData | null>(null)
+  const [selectedRegion, setSelectedRegion] = useState<RegionData>(regions[9]) // US Average default
+  const [electricityPrice, setElectricityPrice] = useState([0.12]) // Default $0.12 per kWh
+  const [tokenCount, setTokenCount] = useState(1000000) // Default 1M tokens
+  const [precision, setPrecision] = useState("FP16") // FP32, FP16, FP8
+  const [pue, setPue] = useState([1.2]) // Power Usage Effectiveness
+
+  useEffect(() => {
+    fetchModels()
+  }, [])
+
+  // No longer maintaining filteredModels; selection handled within combobox
+
+  const fetchModels = async () => {
+    try {
+      setError(null)
+      const response = await fetch("/api/models")
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (!Array.isArray(data)) {
+        throw new Error("Invalid data format received")
+      }
+
+      setModels(data)
+      if (data.length > 0) {
+        setSelectedModel(data[0])
+      }
+    } catch (error) {
+      console.error("Error fetching models:", error)
+      setError("Failed to load models. Using fallback data.")
+
+      // Set fallback data directly in the client if API fails completely
+      const fallbackData: ModelData[] = [
+        { name: "GPT-4 Turbo", parameters_in_billions: 175, emissions_per_token_kWh: 1.329e-6 },
+        { name: "Claude-3 Opus", parameters_in_billions: 175, emissions_per_token_kWh: 1.329e-6 },
+        { name: "Llama 2 70B", parameters_in_billions: 70, emissions_per_token_kWh: 5.316e-7 },
+        { name: "Mixtral 8x7B", parameters_in_billions: 7, emissions_per_token_kWh: 5.316e-8 },
+        { name: "Llama 2 13B", parameters_in_billions: 13, emissions_per_token_kWh: 9.872e-8 },
+        { name: "Llama 2 7B", parameters_in_billions: 7, emissions_per_token_kWh: 5.316e-8 },
+        { name: "Mistral 7B", parameters_in_billions: 7, emissions_per_token_kWh: 5.316e-8 },
+      ]
+
+      setModels(fallbackData)
+      if (fallbackData.length > 0) {
+        setSelectedModel(fallbackData[0])
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const calculateAdvancedMetrics = () => {
+    if (!selectedModel)
+      return {
+        totalCost: 0,
+        costPer1M: 0,
+        totalEnergyKwh: 0,
+        carbonEmissionsKg: 0,
+        totalFlops: 0,
+        energyPerToken: 0,
+      }
+
+    // FLOP-based calculation: ~2 FLOPs per parameter per token
+    const totalFlops = 2 * selectedModel.parameters_in_billions * 1e9 * tokenCount
+
+    // Hardware efficiency based on precision (FLOPs per Joule)
+    // Based on NVIDIA H100 specs: ~9.89e14 FLOPs/sec at ~1500W including overhead
+    const baseEfficiency = 6.59e11 // FLOPs per Joule (conservative estimate)
+
+    // Precision multipliers
+    const precisionMultipliers = {
+      FP32: 1.0,
+      FP16: 2.0, // Roughly double efficiency
+      FP8: 4.0, // Roughly quadruple efficiency
+    }
+
+    const efficiency = baseEfficiency * precisionMultipliers[precision as keyof typeof precisionMultipliers]
+
+    // Energy calculation in Joules, then convert to kWh
+    const energyJoules = totalFlops / efficiency
+    const energyKwhBase = energyJoules / 3.6e6 // Convert J to kWh
+
+    // Apply PUE (Power Usage Effectiveness) for data center overhead
+    const totalEnergyKwh = energyKwhBase * pue[0]
+
+    // Cost calculation
+    const totalCost = totalEnergyKwh * electricityPrice[0]
+    const energyPer1M = (totalEnergyKwh / tokenCount) * 1000000
+    const costPer1M = energyPer1M * electricityPrice[0]
+
+    // Carbon emissions calculation
+    const carbonEmissionsKg = totalEnergyKwh * selectedRegion.carbonIntensity
+
+    const energyPerToken = totalEnergyKwh / tokenCount
+
+    return {
+      totalCost,
+      costPer1M,
+      totalEnergyKwh,
+      carbonEmissionsKg,
+      totalFlops,
+      energyPerToken,
+    }
+  }
+
+  const { totalCost, costPer1M, totalEnergyKwh, carbonEmissionsKg, totalFlops, energyPerToken } =
+    calculateAdvancedMetrics()
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-color-1 flex items-center justify-center">
+        <Card className="w-96 border-0 bg-white">
+          <CardContent className="flex items-center justify-center p-8">
+            <Loader2 className="h-8 w-8 animate-spin mr-3 text-color-3" />
+            <span className="text-gray-600">Loading models...</span>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="min-h-screen bg-color-1">
+        {/* Header */}
+      <header className="bg-color-3 px-4 sm:px-8 py-6 sm:py-10 mx-5 my-4 rounded-xl">
+        <div className="max-w-7xl mx-auto flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-2">
+            <span className="p-2 bg-color-2/20 rounded-lg flex items-center justify-center">
+              <BarChart3 className="h-7 w-7 sm:h-8 sm:w-8 text-color-2" />
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-bold text-color-2 tracking-tight">
+              AI Energy Calculator
+            </h1>
+          </div>
+          <p className="text-secondary-foreground text-base sm:text-lg max-w-2xl">
+            Research-based calculations using FLOP analysis and geographic carbon intensity.
+          </p>
+          <div className="mt-2">
+            <span className="bg-foreground/90 text-white text-xs sm:text-sm px-3 py-1.5 rounded-lg inline-block">
+              Need dirt cheap LLM inference?{" "}
+              <a
+                href="https://inference.net"
+                className="underline font-medium"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Go to inference.net
+              </a>
+            </span>
+          </div>
+          {error && (
+            <div className="mt-3 flex items-center gap-2 text-color-2 bg-color-2/10 px-3 py-2 rounded-lg border border-color-2/20">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span className="text-sm break-words">{error}</span>
+            </div>
+          )}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </header>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Configuration Panel */}
+          <Card className="lg:col-span-1 border border-color-7 bg-white">
+            <CardHeader className="pb-4 bg-color-6 rounded-t-lg">
+              <CardTitle className="flex items-center gap-2 text-foreground">
+                <Settings className="h-5 w-5 text-color-3" />
+                Configuration
+              </CardTitle>
+              <CardDescription className="text-muted-foreground">Model parameters and infrastructure settings</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 p-6">
+              {/* Model Combobox */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-muted-foreground">Select Model ({models.length} available)</Label>
+                <ModelCombobox
+                  options={models.map((m) => ({ value: m.name, label: m.name + ` (${m.parameters_in_billions}B)` }))}
+                  value={selectedModel?.name || ""}
+                  onValueChange={(value) => {
+                    const model = models.find((m) => m.name === value)
+                    setSelectedModel(model || null)
+                  }}
+                />
+              </div>
+
+              {/* Token Count Input */}
+              <div className="space-y-2">
+                <Label htmlFor="token-count" className="text-sm font-medium text-muted-foreground">
+                  Number of Tokens
+                </Label>
+                <Input
+                  id="token-count"
+                  type="number"
+                  value={tokenCount}
+                  onChange={(e) => setTokenCount(Number(e.target.value) || 0)}
+                  placeholder="Enter token count"
+                  className="border-color-7 focus:border-color-3 focus:ring-color-3 bg-white"
+                />
+              </div>
+
+              {/* Precision Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="precision" className="text-sm font-medium text-muted-foreground">
+                  Floating Point{" "}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="underline cursor-help">Precision</span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>
+                        Precision refers to the number of bits used to represent floating-point numbers.
+                        Lower precision (FP16/FP8) increases efficiency but may reduce numerical accuracy.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </Label>
+                <Select value={precision} onValueChange={setPrecision}>
+                  <SelectTrigger className="border-color-7 focus:border-color-3 focus:ring-color-3 bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-color-7">
+                    <SelectItem value="FP32">FP32 (Full Precision)</SelectItem>
+                    <SelectItem value="FP16">FP16 (Half Precision) - 2x efficiency</SelectItem>
+                    <SelectItem value="FP8">FP8 (Quarter Precision) - 4x efficiency</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* PUE Slider */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-muted-foreground">
+                  Data Center{" "}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="underline cursor-help">PUE</span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>
+                        Power Usage Effectiveness — ratio of total facility energy to IT equipment energy.
+                        1.0 is ideal; higher values indicate additional overhead.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                  : {pue[0].toFixed(2)}
+                </Label>
+                <Slider
+                  value={pue}
+                  onValueChange={setPue}
+                  max={2.5}
+                  min={1.0}
+                  step={0.1}
+                  className="w-full [&_[role=slider]]:bg-color-3 [&_[role=slider]]:border-color-3"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>1.0 (Perfect)</span>
+                  <span>2.5 (Poor)</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Economic Panel */}
+          <Card className="lg:col-span-1 border border-color-7 bg-white">
+            <CardHeader className="pb-4 bg-color-6 rounded-t-lg">
+              <CardTitle className="flex items-center gap-2 text-foreground">
+                <DollarSign className="h-5 w-5 text-color-3" />
+                Economic Impact
+              </CardTitle>
+              <CardDescription className="text-muted-foreground">Electricity pricing and cost calculations</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 p-6">
+              {/* Electricity Price Slider */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-muted-foreground">
+                  Electricity Price: ${electricityPrice[0].toFixed(3)} per kWh
+                </Label>
+                <Slider
+                  value={electricityPrice}
+                  onValueChange={setElectricityPrice}
+                  max={0.5}
+                  min={0.05}
+                  step={0.001}
+                  className="w-full [&_[role=slider]]:bg-color-3 [&_[role=slider]]:border-color-3"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>$0.05</span>
+                  <span>$0.50</span>
+                </div>
+              </div>
+
+              {selectedModel && (
+                <>
+                  {/* Cost Results */}
+                  <div className="space-y-4">
+                    <div className="p-4 bg-color-5 border border-color-7 rounded-xl">
+                      <div className="flex items-center gap-2 mb-2">
+                        <DollarSign className="h-4 w-4 text-color-3" />
+                        <span className="font-semibold text-color-3">Total Cost</span>
+                      </div>
+                      <p className="text-2xl font-bold text-foreground">${totalCost.toFixed(6)}</p>
+                      <p className="text-sm text-muted-foreground">for {tokenCount.toLocaleString()} tokens</p>
+                    </div>
+
+                    <div className="p-4 bg-color-5 border border-color-7 rounded-xl">
+                      <div className="flex items-center gap-2 mb-2">
+                        <DollarSign className="h-4 w-4 text-color-3" />
+                        <span className="font-semibold text-color-3">Cost per 1M Tokens</span>
+                      </div>
+                      <p className="text-2xl font-bold text-foreground">${costPer1M.toFixed(6)}</p>
+                      <p className="text-sm text-muted-foreground">per million tokens</p>
+                    </div>
+                  </div>
+
+                  {/* Energy Breakdown */}
+                  <div className="p-4 bg-color-5 border border-color-7 rounded-xl">
+                    <h4 className="font-semibold text-color-3 mb-2">Energy Analysis</h4>
+                    <div className="space-y-1 text-sm text-muted-foreground">
+                      <p>Total Energy: {totalEnergyKwh.toFixed(6)} kWh</p>
+                      <p>Energy per Token: {energyPerToken.toExponential(3)} kWh</p>
+                      <p>
+                        Total{" "}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="underline cursor-help">FLOPs</span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Floating-Point Operations — fundamental arithmetic operations performed by the model.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        : {totalFlops.toExponential(2)}
+                      </p>
+                      <p>Precision: {precision}</p>
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Environmental Panel */}
+          <Card className="lg:col-span-1 border border-color-7 bg-white">
+            <CardHeader className="pb-4 bg-color-6 rounded-t-lg">
+              <CardTitle className="flex items-center gap-2 text-foreground">
+                <Leaf className="h-5 w-5 text-color-3" />
+                Environmental Impact
+              </CardTitle>
+              <CardDescription className="text-muted-foreground">Carbon emissions based on grid location</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 p-6">
+              {/* Region Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="region-select" className="text-sm font-medium text-muted-foreground">
+                  Grid Region
+                </Label>
+                <Select
+                  value={selectedRegion.name}
+                  onValueChange={(value) => {
+                    const region = regions.find((r) => r.name === value)
+                    if (region) setSelectedRegion(region)
+                  }}
+                >
+                  <SelectTrigger className="border-color-7 focus:border-color-3 focus:ring-color-3 bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-color-7">
+                    {regions.map((region) => (
+                      <SelectItem key={region.name} value={region.name}>
+                        <div className="flex items-center justify-between w-full">
+                          <span className="truncate">{region.name}</span>
+                          <Badge variant="outline" className="ml-2 border-color-7 text-muted-foreground">
+                            {region.carbonIntensity.toFixed(3)} kg/kWh
+                          </Badge>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedModel && (
+                <>
+                  {/* Carbon Emissions */}
+                  <div className="p-4 bg-color-5 border border-color-7 rounded-xl">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Leaf className="h-4 w-4 text-color-3" />
+                      <span className="font-semibold text-color-3">Carbon Emissions</span>
+                    </div>
+                    <p className="text-2xl font-bold text-foreground">{carbonEmissionsKg.toFixed(6)} kg CO₂</p>
+                    <p className="text-sm text-muted-foreground">for {tokenCount.toLocaleString()} tokens</p>
+                  </div>
+
+                  {/* Emissions per 1M tokens */}
+                  <div className="p-4 bg-color-5 border border-color-7 rounded-xl">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Leaf className="h-4 w-4 text-color-3" />
+                      <span className="font-semibold text-color-3">CO₂ per 1M Tokens</span>
+                    </div>
+                    <p className="text-2xl font-bold text-foreground">
+                      {((carbonEmissionsKg / tokenCount) * 1000000).toFixed(6)} kg CO₂
+                    </p>
+                    <p className="text-sm text-muted-foreground">per million tokens</p>
+                  </div>
+
+                  {/* Grid Info */}
+                  <div className="p-4 bg-color-7 border border-color-7 rounded-xl">
+                    <h4 className="font-semibold text-foreground mb-2">Grid Information</h4>
+                    <div className="space-y-1 text-sm text-muted-foreground">
+                      <p>Region: {selectedRegion.name}</p>
+                      <p>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="underline cursor-help">Carbon&nbsp;Intensity</span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Amount of CO₂ emitted per kilowatt-hour of electricity in this region.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        : {selectedRegion.carbonIntensity.toFixed(3)} kg CO₂/kWh
+                      </p>
+                      <p>PUE Factor: {pue[0].toFixed(2)}x</p>
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Research Info Footer */}
+        <Card className="mt-8 border border-color-7 bg-color-2">
+          <CardContent className="p-6">
+            <h3 className="font-semibold text-foreground mb-3">Research-Based Methodology</h3>
+            <div className="text-sm text-muted-foreground space-y-2">
+              <p>
+                <strong>Energy Calculation:</strong> Uses FLOP-based analysis where each token requires ~2 FLOPs per
+                model parameter. Energy consumption is calculated as: E = (2 × N_params × T) / η, where η is hardware
+                efficiency in FLOPs/Joule.
+              </p>
+              <p>
+                <strong>Carbon Emissions:</strong> Calculated as E_kWh × I_grid, where I_grid is the region-specific
+                carbon intensity in kg CO₂/kWh. Geographic variation accounts for different energy mixes (renewable vs.
+                fossil fuels).
+              </p>
+              <p>
+                <strong>Hardware Assumptions:</strong> Based on NVIDIA H100 specifications (~6.59×10¹¹ FLOPs/Joule
+                conservative estimate). Precision improvements (FP16/FP8) increase efficiency by 2x/4x respectively.
+              </p>
+              <p className="text-xs mt-3 text-muted-foreground">
+                Sources: Hopper et al. (2023), Özcan et al. (2023)
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
-  );
+  )
 }
