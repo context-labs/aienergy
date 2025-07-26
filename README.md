@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Energy Calculator 🌎⚡️
 
-## Getting Started
+[Live Demo → calculeai.com](https://www.calculeai.com)
 
-First, run the development server:
+Estimate **energy use, cost, and CO₂ emissions** of large-language-model inference in real time.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/og-image.png">
+    <img alt="AI Energy Calculator preview" src="public/og-image.png" width="700">
+  </picture>
+</p>
+
+## ✨ Why this project?
+
+Generative AI is amazing—but it comes with an energy bill.  This tool makes the environmental and economic impact of LLM inference **transparent & actionable** for engineers, researchers, and product teams.
+
+* 📊 **Instant feedback** – tweak model, precision, tokens, location, electricity price & more
+* ⚙️ **Research-backed formulae** – FLOP analysis + region-specific grid intensity
+* 🌐 **Global perspective** – compare 15+ grid regions from Iceland to Australia
+* 💰 **Cost breakdown** – see dollars _and_ kWh for any workload size
+* 🍃 **Carbon insights** – quantify CO₂ per token and total session
+
+> "What gets measured gets managed." – Peter Drucker
+
+## 🔥 Quick start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm dev # then visit http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🧠 Calculation methodology
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. **Total FLOPs**  \(F = 2\times N_{params}\times T\)  
+2. **Energy (kWh)**  \(E = \dfrac{F}{\eta}\div 3.6\times 10^{6}\)  
+3. **PUE overhead**  \(E_{total} = E \times \text{PUE}\)  
+4. **Carbon**  \(CO₂ = E_{total} \times I_{grid}\)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Key assumptions:
 
-## Learn More
+* NVIDIA H100 efficiency: **6.59×10¹¹ FLOPs/J** (conservative)
+* Precision multipliers: FP32 (1×), FP16 (2×), FP8 (4×)
+* Region-specific carbon intensity from latest open-data sets
 
-To learn more about Next.js, take a look at the following resources:
+_Sources: Hopper et al. (2023), Özcan et al. (2023)_
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🏗️ Tech stack
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+* [Next.js 13 App Router](https://nextjs.org)
+* [React-Server Components](https://react.dev)
+* TypeScript, Tailwind CSS, Shad-cn UI
+* Vercel Analytics for usage insights
 
-## Deploy on Vercel
+## 📈 Roadmap
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- [ ] GPU benchmarking integration
+- [ ] Batch vs streaming inference toggle
+- [ ] Export to CSV / JSON
+- [ ] **Your idea?** Open an issue!
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 💖 Contributing
+
+1. Fork & `git clone`
+2. Create a feature branch
+3. `pnpm run lint && pnpm run test` (coming soon)
+4. PR away – we love contributions of **all** sizes!
+
+## ⭐️ Support the project
+
+If this project helps you understand or reduce AI energy usage, please **star this repo** and share with a friend. It fuels further development! 🙏
+
+---
+
+Made with ❤️ by [@yourname](https://github.com/yourname) – MIT license
