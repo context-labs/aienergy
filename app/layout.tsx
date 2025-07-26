@@ -13,10 +13,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const siteUrl =
-  process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : "http://localhost:3000";
+const siteUrl = "https://www.calculeai.com/";
 
 export const metadata: Metadata = {
   title: "AI Energy Calculator",
