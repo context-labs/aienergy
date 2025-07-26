@@ -188,6 +188,17 @@ export default function AIEmissionsCalculator() {
           </div>
           <p className="text-secondary-foreground text-base sm:text-lg max-w-2xl">
             Research-based calculations using FLOP analysis and geographic carbon intensity.
+            <span className="ml-2 text-xs align-middle">
+              <a
+                href="https://github.com/mrmps/aienergy"
+                className="underline text-color-3 hover:text-color-2"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="View source on GitHub"
+              >
+                (GitHub)
+              </a>
+            </span>
           </p>
           <div className="mt-2">
             <span className="bg-foreground/90 text-white text-xs sm:text-sm px-3 py-1.5 rounded-lg inline-block">
