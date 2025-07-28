@@ -72,4 +72,4 @@ If this project helps you understand or reduce AI energy usage, please **star th
 
 ---
 
-Made with ❤️ by [@yourname](https://github.com/yourname) – MIT license
+Made with ❤️ by [@michael_chomsky](https://twitter.com/michael_chomksy) – MIT license
