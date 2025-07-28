@@ -9,38 +9,11 @@ import { ModelCombobox } from "@/components/model-combobox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import { Loader2, DollarSign, Leaf, Settings, BarChart3, AlertCircle, Github, Twitter } from "lucide-react"
+import { Loader2, DollarSign, Leaf, Settings, AlertCircle, Github, Twitter } from "lucide-react"
 import Latex from "react-latex-next"
+import { ModelData, RegionData, regions, calculateMetrics } from "@/lib/energy-metrics"
 
-interface ModelData {
-  name: string
-  parameters_in_billions: number
-  emissions_per_token_kWh: number
-}
-
-interface RegionData {
-  name: string
-  carbonIntensity: number // kg CO2/kWh
-}
-
-const regions: RegionData[] = [
-  { name: "Iceland (Renewable Heavy)", carbonIntensity: 0.028 },
-  { name: "Norway (Hydroelectric)",      carbonIntensity: 0.032 },
-  { name: "France (Nuclear Heavy)",      carbonIntensity: 0.027 },
-  { name: "Sweden (Mixed Renewable)",    carbonIntensity: 0.039 },
-  { name: "Canada (Mixed)",              carbonIntensity: 0.137 },
-  { name: "Google europe-north1",        carbonIntensity: 0.088 }, // Finland grid
-  { name: "Brazil (Hydro Heavy)",        carbonIntensity: 0.103 },
-  { name: "United Kingdom",              carbonIntensity: 0.237 },
-  { name: "United States (Average)",     carbonIntensity: 0.345 },
-  { name: "Google us-central1",          carbonIntensity: 0.243 }, // Iowa grid
-  { name: "Japan",                       carbonIntensity: 0.463 },
-  { name: "Germany",                     carbonIntensity: 0.321 },
-  { name: "China (Coal Heavy)",          carbonIntensity: 0.510 },
-  { name: "India (Coal Heavy)",          carbonIntensity: 0.636 },
-  { name: "Australia (Coal Heavy)",      carbonIntensity: 0.482 },
-  { name: "South Africa (Coal Heavy)",   carbonIntensity: 0.687 },
-];
+// (Interfaces and regions constant were moved to '@/lib/energy-metrics')
 
 export default function AIEmissionsCalculator() {
   const [models, setModels] = useState<ModelData[]>([])
@@ -104,74 +77,21 @@ export default function AIEmissionsCalculator() {
     }
   }
 
-  const calculateAdvancedMetrics = () => {
-    if (!selectedModel)
-      return {
-        totalCost: 0,
-        costPer1M: 0,
-        totalEnergyKwh: 0,
-        carbonEmissionsKg: 0,
-        totalFlops: 0,
-        energyPerToken: 0,
-      }
-
-    // Ensure parameter count is a valid positive number
-    if (!Number.isFinite(selectedModel.parameters_in_billions) || selectedModel.parameters_in_billions <= 0) {
-      return {
-        totalCost: 0,
-        costPer1M: 0,
-        totalEnergyKwh: 0,
-        carbonEmissionsKg: 0,
-        totalFlops: 0,
-        energyPerToken: 0,
-      }
-    }
-
-    // FLOP-based calculation: ~2 FLOPs per parameter per token
-    const totalFlops = 2 * selectedModel.parameters_in_billions * 1e9 * tokenCount
-
-    // Hardware efficiency based on precision (FLOPs per Joule)
-    // Based on NVIDIA H100 specs: ~9.89e14 FLOPs/sec at ~1500W including overhead
-    const baseEfficiency = 6.59e11 // FLOPs per Joule (conservative estimate)
-
-    // Precision multipliers
-    const precisionMultipliers = {
-      FP32: 1.0,
-      FP16: 2.0, // Roughly double efficiency
-      FP8: 4.0, // Roughly quadruple efficiency
-    }
-
-    const efficiency = baseEfficiency * precisionMultipliers[precision as keyof typeof precisionMultipliers]
-
-    // Energy calculation in Joules, then convert to kWh
-    const energyJoules = totalFlops / efficiency
-    const energyKwhBase = energyJoules / 3.6e6 // Convert J to kWh
-
-    // Apply PUE (Power Usage Effectiveness) for data center overhead
-    const totalEnergyKwh = energyKwhBase * pue[0]
-
-    // Cost calculation
-    const totalCost = totalEnergyKwh * electricityPrice[0]
-    const energyPer1M = (totalEnergyKwh / tokenCount) * 1000000
-    const costPer1M = energyPer1M * electricityPrice[0]
-
-    // Carbon emissions calculation
-    const carbonEmissionsKg = totalEnergyKwh * selectedRegion.carbonIntensity
-
-    const energyPerToken = totalEnergyKwh / tokenCount
-
-    return {
-      totalCost,
-      costPer1M,
-      totalEnergyKwh,
-      carbonEmissionsKg,
-      totalFlops,
-      energyPerToken,
-    }
-  }
-
-  const { totalCost, costPer1M, totalEnergyKwh, carbonEmissionsKg, totalFlops, energyPerToken } =
-    calculateAdvancedMetrics()
+  const {
+    totalCost,
+    costPer1M,
+    totalEnergyKwh,
+    carbonEmissionsKg,
+    totalFlops,
+    energyPerToken,
+  } = calculateMetrics({
+    model: selectedModel,
+    tokenCount,
+    precision: precision as "FP32" | "FP16" | "FP8",
+    pue: pue[0],
+    electricityPrice: electricityPrice[0],
+    region: selectedRegion,
+  })
 
   if (loading) {
     return (
@@ -192,60 +112,54 @@ export default function AIEmissionsCalculator() {
       <header className="bg-color-3 px-4 sm:px-8 py-6 sm:py-10 mx-5 my-4 rounded-xl">
         <div className="max-w-7xl mx-auto flex flex-col gap-3">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-2">
-            <span className="p-2 bg-color-2/20 rounded-lg flex items-center justify-center">
-              <BarChart3 className="h-7 w-7 sm:h-8 sm:w-8 text-color-2" />
-            </span>
             <h1 className="text-2xl sm:text-3xl font-bold text-color-2 tracking-tight">
               LLM Token Production Energy Cost Calculator
             </h1>
           </div>
-          <p className="text-secondary-foreground text-base sm:text-lg max-w-2xl">
+          <p className="text-secondary-foreground text-base sm:text-lg max-w-2xl flex flex-wrap items-center gap-2">
             Research-based calculations using FLOP analysis and geographic carbon intensity to estimate the environmental impact of AI model inference.
-            <span className="ml-2 text-xs align-middle">
-              <a
-                href="https://github.com/mrmps/aienergy"
-                className="underline text-color-3 hover:text-color-2"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="View source on GitHub"
-              >
-                (GitHub)
-              </a>
-            </span>
+            <a
+              href="https://github.com/mrmps/aienergy"
+              className="inline-flex items-center gap-1 text-xs sm:text-sm text-color-3 hover:text-color-2 underline"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Project Source Code on GitHub"
+            >
+              <Github className="h-4 w-4" />
+              Source Code
+            </a>
           </p>
           {/* Inference.net call-to-action and social links */}
-          <div className="mt-2 flex flex-col gap-1">
-            <span className="bg-foreground/90 text-white text-xs sm:text-sm px-3 py-1.5 rounded-lg inline-block">
+          <div className="mt-2 flex items-center flex-wrap gap-2">
+            <span className="bg-foreground/90 text-white text-xs sm:text-sm px-3 py-1.5 rounded-lg inline-flex items-center gap-1">
               Brought to you by{" "}
               <a
                 href="https://inference.net"
-                className="underline font-medium"
+                className="underline font-medium whitespace-nowrap"
                 target="_blank"
                 rel="noopener noreferrer"
               >
                 Inference.net
               </a>
             </span>
-            <div className="flex items-center gap-3 pl-1 pt-1 text-color-2 text-sm">
-              <a
-                href="https://github.com/context-labs/"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Inference.net GitHub"
-                className="hover:text-color-3 transition-colors"
-              >
-                <Github className="h-4 w-4" />
-              </a>
-              <a
-                href="https://x.com/inference_net"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Inference.net Twitter/X"
-                className="hover:text-color-3 transition-colors"
-              >
-                <Twitter className="h-4 w-4" />
-              </a>
-            </div>
+            <a
+              href="https://github.com/context-labs/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Inference.net GitHub"
+              className="text-color-2 hover:text-color-3 transition-colors"
+            >
+              <Github className="h-4 w-4" />
+            </a>
+            <a
+              href="https://x.com/inference_net"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Inference.net Twitter/X"
+              className="text-color-2 hover:text-color-3 transition-colors"
+            >
+              <Twitter className="h-4 w-4" />
+            </a>
           </div>
           {error && (
             <div className="mt-3 flex items-center gap-2 text-color-2 bg-color-2/10 px-3 py-2 rounded-lg border border-color-2/20">
