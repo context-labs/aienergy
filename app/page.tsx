@@ -118,16 +118,6 @@ export default function AIEmissionsCalculator() {
           </div>
           <p className="text-secondary-foreground text-base sm:text-lg max-w-2xl flex flex-wrap items-center gap-2">
             Research-based calculations using FLOP analysis and geographic carbon intensity to estimate the environmental impact of AI model inference.
-            <a
-              href="https://github.com/context-labs/aienergy"
-              className="inline-flex items-center gap-1 text-xs sm:text-sm text-color-3 hover:text-color-2 underline"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Project Source Code on GitHub"
-            >
-              <Github className="h-4 w-4" />
-              Source Code
-            </a>
           </p>
           {/* Inference.net call-to-action and social links */}
           <div className="mt-2 flex items-center flex-wrap gap-2">
@@ -143,7 +133,7 @@ export default function AIEmissionsCalculator() {
               </a>
             </span>
             <a
-              href="https://github.com/context-labs/"
+              href="https://github.com/context-labs/aienergy"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Inference.net GitHub"
