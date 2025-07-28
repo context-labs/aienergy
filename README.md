@@ -1,6 +1,6 @@
 # AI Energy Calculator 🌎⚡️
 
-[Live Demo → calculeai.com](https://www.calculeai.com)
+[Live Demo → energy.inference.net](https://www.energy.inference.net)
 
 Estimate **energy use, cost, and CO₂ emissions** of large-language-model inference in real time.
 

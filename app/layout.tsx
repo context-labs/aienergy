@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const siteUrl = "https://www.calculeai.com/";
+const siteUrl = "https://www.energy.inference.net";
 
 export const metadata: Metadata = {
   title: "LLM Token Production Energy Cost",
