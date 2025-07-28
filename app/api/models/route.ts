@@ -24,12 +24,22 @@ const fallbackModels: ModelData[] = [
   { name: "CodeLlama 34B", parameters_in_billions: 34, emissions_per_token_kWh: 2.582e-7 },
   { name: "Vicuna 13B", parameters_in_billions: 13, emissions_per_token_kWh: 9.872e-8 },
   { name: "WizardLM 70B", parameters_in_billions: 70, emissions_per_token_kWh: 5.316e-7 },
+  // Newly added large-scale models
+  { name: "DeepSeek V3 0324", parameters_in_billions: 675, emissions_per_token_kWh: 675 * 7.594e-9 },
+  { name: "Kimi K2", parameters_in_billions: 1000, emissions_per_token_kWh: 1000 * 7.594e-9 },
 ]
 
 export async function GET() {
   const oneDay = 24 * 60 * 60 * 1000;
   if (cachedModels && Date.now() - lastFetched < oneDay) {
-    return NextResponse.json(cachedModels);
+    // Re-clean cached models in case filter logic has changed
+    const cleanedCache = cachedModels.filter(
+      (m) => Number.isFinite(m.parameters_in_billions) && m.parameters_in_billions > 0
+    )
+    if (cleanedCache.length === cachedModels.length) {
+      return NextResponse.json(cachedModels)
+    }
+    // Otherwise fall through to refetch
   }
 
   try {
@@ -71,17 +81,33 @@ export async function GET() {
     const energyConsumptionFactor = 7.594e-9
 
     for (const model of data.data) {
-      const modelName = model.name || ""
+      const rawName: string = model.name || ""
 
-      // More specific regex to match parameter counts like "7B", "70B", "405B"
-      // This looks for word boundaries and numbers directly followed by B/b
-      const parameterRegex = /\b(\d+(?:\.\d+)?)\s*[bB]\b/g
+      // Skip known problematic Baidu ERNIE entries
+      const blacklistPatterns = [/\bbaidu\b/i, /\bernie\b/i]
+      if (blacklistPatterns.some((re) => re.test(rawName))) {
+        continue
+      }
+
+      const modelName = rawName
+
+      // Skip models advertised as free tiers
+      if (/\(\s*free\s*\)/i.test(modelName)) {
+        continue
+      }
+
+      // Match counts suffixed with B/b (billions) or T/t (trillions)
+      const parameterRegex = /\b(\d+(?:\.\d+)?)\s*([bBtT])\b/g
       const matches = [...modelName.matchAll(parameterRegex)]
 
       if (matches.length > 0) {
         try {
           // Extract all parameter counts and take the largest
-          const parameterCounts = matches.map((match) => Number.parseFloat(match[1]))
+          const parameterCounts = matches.map((match) => {
+            const value = Number.parseFloat(match[1])
+            const unit = match[2].toLowerCase()
+            return unit === "t" ? value * 1000 : value // convert trillions -> billions
+          })
           const parametersInBillions = Math.max(...parameterCounts)
 
           if (parametersInBillions > 0) {
@@ -101,13 +127,30 @@ export async function GET() {
       }
     }
 
+    // Ensure critical large-scale models are present even if API didn't list them
+    const essentialModels: ModelData[] = [
+      { name: "DeepSeek V3 0324", parameters_in_billions: 675, emissions_per_token_kWh: 675 * energyConsumptionFactor },
+      { name: "Kimi K2", parameters_in_billions: 1000, emissions_per_token_kWh: 1000 * energyConsumptionFactor },
+    ]
+
+    for (const essential of essentialModels) {
+      if (!modelsWithEmissions.some((m) => m.name.toLowerCase() === essential.name.toLowerCase())) {
+        modelsWithEmissions.push(essential)
+      }
+    }
+
+    // Remove any models lacking a valid parameter count
+    const cleanModels = modelsWithEmissions.filter(
+      (m) => Number.isFinite(m.parameters_in_billions) && m.parameters_in_billions > 0
+    )
+
     // If we got valid models from the API, use them
-    if (modelsWithEmissions.length > 0) {
+    if (cleanModels.length > 0) {
       // Sort by parameter count (largest first)
-      modelsWithEmissions.sort((a, b) => b.parameters_in_billions - a.parameters_in_billions)
-      cachedModels = modelsWithEmissions;
+      cleanModels.sort((a, b) => b.parameters_in_billions - a.parameters_in_billions)
+      cachedModels = cleanModels;
       lastFetched = Date.now();
-      return NextResponse.json(modelsWithEmissions)
+      return NextResponse.json(cleanModels)
     } else {
       // If no valid models found in API response, use fallback
       console.warn("No valid models found in OpenRouter API response, using fallback data")

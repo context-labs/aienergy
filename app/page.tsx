@@ -9,7 +9,7 @@ import { ModelCombobox } from "@/components/model-combobox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import { Loader2, DollarSign, Leaf, Settings, BarChart3, AlertCircle } from "lucide-react"
+import { Loader2, DollarSign, Leaf, Settings, BarChart3, AlertCircle, Github, Twitter } from "lucide-react"
 import Latex from "react-latex-next"
 
 interface ModelData {
@@ -49,7 +49,8 @@ export default function AIEmissionsCalculator() {
   const [error, setError] = useState<string | null>(null)
   const [selectedModel, setSelectedModel] = useState<ModelData | null>(null)
   const [selectedRegion, setSelectedRegion] = useState<RegionData>(regions[9]) // US Average default
-  const [electricityPrice, setElectricityPrice] = useState([0.12]) // Default $0.12 per kWh
+  // Default electricity price set to US average residential cost (~$0.152 per kWh)
+  const [electricityPrice, setElectricityPrice] = useState([0.152])
   const [tokenCount, setTokenCount] = useState(1000000) // Default 1M tokens
   const [precision, setPrecision] = useState("FP16") // FP32, FP16, FP8
   const [pue, setPue] = useState([1.2]) // Power Usage Effectiveness
@@ -113,6 +114,18 @@ export default function AIEmissionsCalculator() {
         totalFlops: 0,
         energyPerToken: 0,
       }
+
+    // Ensure parameter count is a valid positive number
+    if (!Number.isFinite(selectedModel.parameters_in_billions) || selectedModel.parameters_in_billions <= 0) {
+      return {
+        totalCost: 0,
+        costPer1M: 0,
+        totalEnergyKwh: 0,
+        carbonEmissionsKg: 0,
+        totalFlops: 0,
+        energyPerToken: 0,
+      }
+    }
 
     // FLOP-based calculation: ~2 FLOPs per parameter per token
     const totalFlops = 2 * selectedModel.parameters_in_billions * 1e9 * tokenCount
@@ -183,11 +196,11 @@ export default function AIEmissionsCalculator() {
               <BarChart3 className="h-7 w-7 sm:h-8 sm:w-8 text-color-2" />
             </span>
             <h1 className="text-2xl sm:text-3xl font-bold text-color-2 tracking-tight">
-              AI Energy Calculator
+              LLM Token Production Energy Cost Calculator
             </h1>
           </div>
           <p className="text-secondary-foreground text-base sm:text-lg max-w-2xl">
-            Research-based calculations using FLOP analysis and geographic carbon intensity.
+            Research-based calculations using FLOP analysis and geographic carbon intensity to estimate the environmental impact of AI model inference.
             <span className="ml-2 text-xs align-middle">
               <a
                 href="https://github.com/mrmps/aienergy"
@@ -200,18 +213,39 @@ export default function AIEmissionsCalculator() {
               </a>
             </span>
           </p>
-          <div className="mt-2">
+          {/* Inference.net call-to-action and social links */}
+          <div className="mt-2 flex flex-col gap-1">
             <span className="bg-foreground/90 text-white text-xs sm:text-sm px-3 py-1.5 rounded-lg inline-block">
-              Need dirt cheap LLM inference?{" "}
+              Brought to you by{" "}
               <a
                 href="https://inference.net"
                 className="underline font-medium"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Go to inference.net
+                Inference.net
               </a>
             </span>
+            <div className="flex items-center gap-3 pl-1 pt-1 text-color-2 text-sm">
+              <a
+                href="https://github.com/context-labs/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Inference.net GitHub"
+                className="hover:text-color-3 transition-colors"
+              >
+                <Github className="h-4 w-4" />
+              </a>
+              <a
+                href="https://x.com/inference_net"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Inference.net Twitter/X"
+                className="hover:text-color-3 transition-colors"
+              >
+                <Twitter className="h-4 w-4" />
+              </a>
+            </div>
           </div>
           {error && (
             <div className="mt-3 flex items-center gap-2 text-color-2 bg-color-2/10 px-3 py-2 rounded-lg border border-color-2/20">
@@ -239,13 +273,29 @@ export default function AIEmissionsCalculator() {
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-muted-foreground">Select Model ({models.length} available)</Label>
                 <ModelCombobox
-                  options={models.map((m) => ({ value: m.name, label: m.name + ` (${m.parameters_in_billions}B)` }))}
+                  options={models.map((m) => ({ value: m.name, label: m.name }))}
                   value={selectedModel?.name || ""}
                   onValueChange={(value) => {
                     const model = models.find((m) => m.name === value)
                     setSelectedModel(model || null)
                   }}
                 />
+                {selectedModel && (
+                  <p className="text-xs text-muted-foreground pt-0.5">
+                    {selectedModel.parameters_in_billions.toLocaleString()}B parameters
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground pt-1">
+                  Models fetched from{" "}
+                  <a
+                    href="https://openrouter.ai/models"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-color-3"
+                  >
+                    OpenRouter
+                  </a>
+                </p>
               </div>
 
               {/* Token Count Input */}
@@ -347,12 +397,27 @@ export default function AIEmissionsCalculator() {
                   step={0.001}
                   className="w-full [&_[role=slider]]:bg-color-3 [&_[role=slider]]:border-color-3"
                 />
+                {/* Min/Max labels */}
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>$0.05</span>
                   <span>$0.50</span>
+                  </div>
+                {/* US electricity price reference points */}
+                <div className="flex justify-between mt-1">
+                  <div className="flex flex-col items-center flex-1">
+                    <span className="rounded px-1 py-0.5 bg-color-6 text-[0.7rem] font-mono text-color-3 mb-0.5">$0.094</span>
+                    <span className="text-[0.65rem] text-muted-foreground">US Low</span>
+                  </div>
+                  <div className="flex flex-col items-center flex-1">
+                    <span className="rounded px-1 py-0.5 bg-color-6 text-[0.7rem] font-mono text-color-3 mb-0.5">$0.152</span>
+                    <span className="text-[0.65rem] text-muted-foreground">US Avg</span>
+                  </div>
+                  <div className="flex flex-col items-center flex-1">
+                    <span className="rounded px-1 py-0.5 bg-color-6 text-[0.7rem] font-mono text-color-3 mb-0.5">$0.379</span>
+                    <span className="text-[0.65rem] text-muted-foreground">US High</span>
+                  </div>
                 </div>
               </div>
-
               {selectedModel && (
                 <>
                   {/* Cost Results */}
@@ -362,7 +427,10 @@ export default function AIEmissionsCalculator() {
                         <DollarSign className="h-4 w-4 text-color-3" />
                         <span className="font-semibold text-color-3">Total Cost</span>
                       </div>
-                      <p className="text-2xl font-bold text-foreground">${totalCost.toFixed(6)}</p>
+                      {/* Mobile precision (<= md) */}
+                      <p className="text-2xl font-bold text-foreground md:hidden">${totalCost.toFixed(6)}</p>
+                      {/* Desktop high precision (>= md) */}
+                      <p className="text-2xl font-bold text-foreground hidden md:block">${totalCost.toFixed(9)}</p>
                       <p className="text-sm text-muted-foreground">for {tokenCount.toLocaleString()} tokens</p>
                     </div>
 
@@ -371,7 +439,10 @@ export default function AIEmissionsCalculator() {
                         <DollarSign className="h-4 w-4 text-color-3" />
                         <span className="font-semibold text-color-3">Cost per 1M Tokens</span>
                       </div>
-                      <p className="text-2xl font-bold text-foreground">${costPer1M.toFixed(6)}</p>
+                      {/* Mobile precision (<= md) */}
+                      <p className="text-2xl font-bold text-foreground md:hidden">${costPer1M.toFixed(6)}</p>
+                      {/* Desktop high precision (>= md) */}
+                      <p className="text-2xl font-bold text-foreground hidden md:block">${costPer1M.toFixed(9)}</p>
                       <p className="text-sm text-muted-foreground">per million tokens</p>
                     </div>
                   </div>
@@ -380,7 +451,10 @@ export default function AIEmissionsCalculator() {
                   <div className="p-4 bg-color-5 border border-color-7 rounded-xl">
                     <h4 className="font-semibold text-color-3 mb-2">Energy Analysis</h4>
                     <div className="space-y-1 text-sm text-muted-foreground">
-                      <p>Total Energy: {totalEnergyKwh.toFixed(6)} kWh</p>
+                      {/* Mobile precision (<= md) */}
+                      <p className="md:hidden">Total Energy: {totalEnergyKwh.toFixed(6)} kWh</p>
+                      {/* Desktop high precision (>= md) */}
+                      <p className="hidden md:block">Total Energy: {totalEnergyKwh.toFixed(9)} kWh</p>
                       <p>Energy per Token: {energyPerToken.toExponential(3)} kWh</p>
                       <p>
                         Total{" "}
@@ -450,7 +524,10 @@ export default function AIEmissionsCalculator() {
                       <Leaf className="h-4 w-4 text-color-3" />
                       <span className="font-semibold text-color-3">Carbon Emissions</span>
                     </div>
-                    <p className="text-2xl font-bold text-foreground">{carbonEmissionsKg.toFixed(6)} kg CO₂</p>
+                    {/* Mobile precision (<= md) */}
+                    <p className="text-2xl font-bold text-foreground md:hidden">{carbonEmissionsKg.toFixed(6)} kg CO₂</p>
+                    {/* Desktop high precision (>= md) */}
+                    <p className="text-2xl font-bold text-foreground hidden md:block">{carbonEmissionsKg.toFixed(9)} kg CO₂</p>
                     <p className="text-sm text-muted-foreground">for {tokenCount.toLocaleString()} tokens</p>
                   </div>
 
@@ -460,8 +537,13 @@ export default function AIEmissionsCalculator() {
                       <Leaf className="h-4 w-4 text-color-3" />
                       <span className="font-semibold text-color-3">CO₂ per 1M Tokens</span>
                     </div>
-                    <p className="text-2xl font-bold text-foreground">
+                    {/* Mobile precision (<= md) */}
+                    <p className="text-2xl font-bold text-foreground md:hidden">
                       {((carbonEmissionsKg / tokenCount) * 1000000).toFixed(6)} kg CO₂
+                    </p>
+                    {/* Desktop high precision (>= md) */}
+                    <p className="text-2xl font-bold text-foreground hidden md:block">
+                      {((carbonEmissionsKg / tokenCount) * 1000000).toFixed(9)} kg CO₂
                     </p>
                     <p className="text-sm text-muted-foreground">per million tokens</p>
                   </div>
@@ -516,7 +598,15 @@ export default function AIEmissionsCalculator() {
                 Precision improvements (FP16/FP8) increase efficiency by 2×/4× respectively.
               </p>
               <span className="text-xs mt-3 text-muted-foreground block">
-                Sources: Hopper et al. (2023), Özcan et al. (2023)
+                Sources:{" "}
+                <a
+                  href="https://www.arxiv.org/pdf/2507.11417.pdf"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-blue-600 transition-colors"
+                >
+                  Özcan et al. (2023), &quot;Quantifying the Energy Consumption and Carbon Emissions of LLM Inference via Simulations&quot;
+                </a>
               </span>
             </div>
           </CardContent>

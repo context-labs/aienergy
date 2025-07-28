@@ -16,11 +16,11 @@ const geistMono = Geist_Mono({
 const siteUrl = "https://www.calculeai.com/";
 
 export const metadata: Metadata = {
-  title: "AI Energy Calculator",
+  title: "LLM Token Production Energy Cost",
   description:
     "Research-based calculations using FLOP analysis and geographic carbon intensity. Estimate energy, cost, and carbon emissions for LLM inference.",
   openGraph: {
-    title: "AI Energy Calculator",
+    title: "LLM Token Production Energy Cost",
     description:
       "Research-based calculations using FLOP analysis and geographic carbon intensity. Estimate energy, cost, and carbon emissions for LLM inference.",
     url: siteUrl,
@@ -29,14 +29,14 @@ export const metadata: Metadata = {
         url: `${siteUrl}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: "AI Energy Calculator",
+        alt: "LLM Token Production Energy Cost",
       },
     ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "AI Energy Calculator",
+    title: "LLM Token Production Energy Cost",
     description:
       "Research-based calculations using FLOP analysis and geographic carbon intensity. Estimate energy, cost, and carbon emissions for LLM inference.",
     images: [`${siteUrl}/og-image.png`],
@@ -53,14 +53,14 @@ export default function RootLayout({
     <html lang="en">
       <head>
         {/* Open Graph and Twitter meta tags for fallback in case Next.js doesn't inject them */}
-        <meta property="og:title" content="AI Energy Calculator" />
+        <meta property="og:title" content="LLM Token Production Energy Cost" />
         <meta
           property="og:description"
           content="Research-based calculations using FLOP analysis and geographic carbon intensity. Estimate energy, cost, and carbon emissions for LLM inference."
         />
         <meta property="og:image" content={`${siteUrl}/og-image.png`} />
         <meta property="og:url" content={siteUrl} />
-        <meta name="twitter:title" content="AI Energy Calculator" />
+        <meta name="twitter:title" content="LLM Token Production Energy Cost" />
         <meta
           name="twitter:description"
           content="Research-based calculations using FLOP analysis and geographic carbon intensity. Estimate energy, cost, and carbon emissions for LLM inference."
