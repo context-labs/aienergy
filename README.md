@@ -43,7 +43,7 @@ Key assumptions:
 * Precision multipliers: FP32 (1×), FP16 (2×), FP8 (4×)
 * Region-specific carbon intensity from latest open-data sets
 
-_Sources: Hopper et al. (2023), Özcan et al. (2023)_
+_Sources: Özcan et al. (2023)_
 
 ## 🏗️ Tech stack
 
