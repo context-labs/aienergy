@@ -63,8 +63,7 @@ _Sources: Özcan et al. (2023)_
 
 1. Fork & `git clone`
 2. Create a feature branch
-3. `pnpm run lint && pnpm run test` (coming soon)
-4. PR away – we love contributions of **all** sizes!
+3. PR away – we love contributions of **all** sizes!
 
 ## ⭐️ Support the project
 
