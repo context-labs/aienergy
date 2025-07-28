@@ -119,7 +119,7 @@ export default function AIEmissionsCalculator() {
           <p className="text-secondary-foreground text-base sm:text-lg max-w-2xl flex flex-wrap items-center gap-2">
             Research-based calculations using FLOP analysis and geographic carbon intensity to estimate the environmental impact of AI model inference.
             <a
-              href="https://github.com/mrmps/aienergy"
+              href="https://github.com/context-labs/aienergy"
               className="inline-flex items-center gap-1 text-xs sm:text-sm text-color-3 hover:text-color-2 underline"
               target="_blank"
               rel="noopener noreferrer"
