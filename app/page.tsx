@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
@@ -9,18 +9,18 @@ import { ModelCombobox } from "@/components/model-combobox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import { Loader2, DollarSign, Leaf, Settings, AlertCircle, Github, Twitter } from "lucide-react"
+import { DollarSign, Leaf, Settings, Github, Twitter } from "lucide-react"
 import Latex from "react-latex-next"
 import { ModelData, RegionData, regions, calculateMetrics } from "@/lib/energy-metrics"
+import { models as localModels } from "@/lib/models"
 
 // (Interfaces and regions constant were moved to '@/lib/energy-metrics')
 
 export default function AIEmissionsCalculator() {
-  const [models, setModels] = useState<ModelData[]>([])
-  // removed filteredModels and searchQuery; we will rely on combobox internal search
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [selectedModel, setSelectedModel] = useState<ModelData | null>(null)
+  // Static model catalogue (dense & MoE aware)
+  const models = localModels
+
+  const [selectedModel, setSelectedModel] = useState<ModelData | null>(models[0] ?? null)
   const [selectedRegion, setSelectedRegion] = useState<RegionData>(regions[9]) // US Average default
   // Default electricity price set to US average residential cost (~$0.152 per kWh)
   const [electricityPrice, setElectricityPrice] = useState([0.152])
@@ -28,54 +28,7 @@ export default function AIEmissionsCalculator() {
   const [precision, setPrecision] = useState("FP16") // FP32, FP16, FP8
   const [pue, setPue] = useState([1.2]) // Power Usage Effectiveness
 
-  useEffect(() => {
-    fetchModels()
-  }, [])
-
-  // No longer maintaining filteredModels; selection handled within combobox
-
-  const fetchModels = async () => {
-    try {
-      setError(null)
-      const response = await fetch("/api/models")
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      if (!Array.isArray(data)) {
-        throw new Error("Invalid data format received")
-      }
-
-      setModels(data)
-      if (data.length > 0) {
-        setSelectedModel(data[0])
-      }
-    } catch (error) {
-      console.error("Error fetching models:", error)
-      setError("Failed to load models. Using fallback data.")
-
-      // Set fallback data directly in the client if API fails completely
-      const fallbackData: ModelData[] = [
-        { name: "GPT-4 Turbo", parameters_in_billions: 175, emissions_per_token_kWh: 1.329e-6 },
-        { name: "Claude-3 Opus", parameters_in_billions: 175, emissions_per_token_kWh: 1.329e-6 },
-        { name: "Llama 2 70B", parameters_in_billions: 70, emissions_per_token_kWh: 5.316e-7 },
-        { name: "Mixtral 8x7B", parameters_in_billions: 7, emissions_per_token_kWh: 5.316e-8 },
-        { name: "Llama 2 13B", parameters_in_billions: 13, emissions_per_token_kWh: 9.872e-8 },
-        { name: "Llama 2 7B", parameters_in_billions: 7, emissions_per_token_kWh: 5.316e-8 },
-        { name: "Mistral 7B", parameters_in_billions: 7, emissions_per_token_kWh: 5.316e-8 },
-      ]
-
-      setModels(fallbackData)
-      if (fallbackData.length > 0) {
-        setSelectedModel(fallbackData[0])
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
+  // No useEffect / remote fetch needed – catalogue is bundled.
 
   const {
     totalCost,
@@ -92,19 +45,6 @@ export default function AIEmissionsCalculator() {
     electricityPrice: electricityPrice[0],
     region: selectedRegion,
   })
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-color-1 flex items-center justify-center">
-        <Card className="w-96 border-0 bg-white">
-          <CardContent className="flex items-center justify-center p-8">
-            <Loader2 className="h-8 w-8 animate-spin mr-3 text-color-3" />
-            <span className="text-gray-600">Loading models...</span>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-color-1">
@@ -151,12 +91,7 @@ export default function AIEmissionsCalculator() {
               <Twitter className="h-4 w-4" />
             </a>
           </div>
-          {error && (
-            <div className="mt-3 flex items-center gap-2 text-color-2 bg-color-2/10 px-3 py-2 rounded-lg border border-color-2/20">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <span className="text-sm break-words">{error}</span>
-            </div>
-          )}
+
         </div>
       </header>
 
@@ -185,21 +120,18 @@ export default function AIEmissionsCalculator() {
                   }}
                 />
                 {selectedModel && (
-                  <p className="text-xs text-muted-foreground pt-0.5">
-                    {selectedModel.parameters_in_billions.toLocaleString()}B parameters
-                  </p>
+                  <>
+                    <p className="text-xs text-muted-foreground pt-0.5">
+                      <strong>Active Parameters:</strong> {selectedModel.active_parameters_in_billions.toLocaleString()}B
+                    </p>
+                    <p className="text-xs text-muted-foreground pt-0.5">
+                      Overall Parameters: {selectedModel.overall_parameters_in_billions.toLocaleString()}B
+                    </p>
+                    <p className="text-[0.65rem] text-muted-foreground pt-1">
+                      Calculations use <strong>active parameters</strong> — the subset actually involved in each token’s computation. Dense models have active == overall, while Mixture-of-Experts (MoE) models use fewer experts per token, lowering energy and cost estimates. Since MoE models need to load all parameters into memory, their energy use is higher than what we estimated, but it should still be a good approximation.
+                    </p>
+                  </>
                 )}
-                <p className="text-xs text-muted-foreground pt-1">
-                  Models fetched from{" "}
-                  <a
-                    href="https://openrouter.ai/models"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:text-color-3"
-                  >
-                    OpenRouter
-                  </a>
-                </p>
               </div>
 
               {/* Token Count Input */}
@@ -486,20 +418,41 @@ export default function AIEmissionsCalculator() {
             <div className="text-sm text-muted-foreground space-y-2">
               <p>
                 <strong>Energy Calculation:</strong>{" "}
-                Uses FLOP-based analysis where each token requires approximately 2 FLOPs per model parameter.
-                Energy consumption is calculated as:{" "}
-                <Latex>{"$E = \\frac{2 \\times N_{params} \\times T}{\\eta}$"}</Latex>,
-                where η is hardware efficiency in FLOPs/Joule.
+                The calculator uses the <em>active parameter count</em> when estimating compute.  Each token
+                triggers roughly <Latex>{"$2 \\times N_{active}$"}</Latex> floating-point operations, so total energy is {" "}
+                <Latex>{"$E = \\frac{2 \\times N_{active} \\times T}{\\eta}$"}</Latex>, where <Latex>{"$\\eta$"}</Latex> is hardware
+                efficiency in FLOPs/Joule.
               </p>
+              <p className="text-sm">
+                • <strong>Overall parameters</strong> represent the full model size (all experts for MoE). <br />
+                • <strong>Active parameters</strong> are the subset actually multiplied for a single token.  Dense models have
+                <em>active = overall</em>; MoE models often have <em>active ≪ overall</em>.
+              </p>
+              <p className="text-sm">
+                This distinction means MoE models show lower compute-energy and cost here than equally sized
+                dense models.  We do not currently account for memory bandwidth or expert-routing overhead, so
+                real-world MoE energy can be somewhat higher.
+              </p>
+
               <p>
                 <strong>Carbon Emissions:</strong>{" "}
-                Calculated as <Latex>{"$E_{kWh} \\times I_{grid}$"}</Latex>, where I<sub>grid</sub> is the region-specific carbon intensity in kg CO₂/kWh.
-                Geographic variation accounts for different energy mixes (renewable vs. fossil fuels).
+                <Latex>{"$E_{\\text{kWh}} \\times I_{\\text{grid}}$"}</Latex>, where <Latex>{"$I_{\\text{grid}}$"}</Latex> is the region-specific
+                carbon intensity (kg CO₂/kWh).  Selecting cleaner grids (lower <Latex>{"$I_{grid}$"}</Latex>) therefore
+                reduces emissions even when energy use is unchanged.
               </p>
               <p>
                 <strong>Hardware Assumptions:</strong>{" "}
                 Based on NVIDIA H100 specifications (~<Latex>{"$6.59 \\times 10^{11}$"}</Latex> FLOPs/Joule, conservative estimate).
                 Precision improvements (FP16/FP8) increase efficiency by 2×/4× respectively.
+              </p>
+
+              <p className="text-xs">
+                <em>Variable definitions:</em>{" "}
+                <Latex>{"$N_{active}$"}</Latex> – active parameters (billions);{" "}
+                <Latex>{"$T$"}</Latex> – token count;{" "}
+                <Latex>{"$E_{\\text{kWh}}$"}</Latex> – total energy in kilowatt-hours;{" "}
+                <Latex>{"$I_{\\text{grid}}$"}</Latex> – regional carbon intensity (kg CO₂/kWh);{" "}
+                <Latex>{"$\\eta$"}</Latex> – hardware efficiency (FLOPs/J).
               </p>
               <span className="text-xs mt-3 text-muted-foreground block">
                 Sources:{" "}

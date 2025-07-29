@@ -1,7 +1,17 @@
 export interface ModelData {
+  // Human-readable model name
   name: string;
-  parameters_in_billions: number;
-  emissions_per_token_kWh: number;
+  /**
+   * Total parameter count (billions).  For dense models this is the full model size,
+   * for Mixture-of-Experts (MoE) this is the headline "overall" size including all experts.
+   */
+  overall_parameters_in_billions: number;
+  /**
+   * Parameters that are actually multiplied for a single token (billions).
+   * ‑ Dense models -> equal to overall_parameters_in_billions
+   * ‑ MoE models   -> k experts × params/expert (usually ≪ overall).
+   */
+  active_parameters_in_billions: number;
 }
 
 export interface RegionData {
@@ -65,12 +75,12 @@ export function calculateMetrics({
   };
 
   if (!model) return zeroResult;
-  if (!Number.isFinite(model.parameters_in_billions) || model.parameters_in_billions <= 0) {
+  if (!Number.isFinite(model.active_parameters_in_billions) || model.active_parameters_in_billions <= 0) {
     return zeroResult;
   }
 
-  // FLOP-based calculation: ~2 FLOPs per parameter per token
-  const totalFlops = 2 * model.parameters_in_billions * 1e9 * tokenCount;
+  // FLOPs are driven by the parameters that actually participate in computation
+  const totalFlops = 2 * model.active_parameters_in_billions * 1e9 * tokenCount;
 
   // Hardware efficiency based on precision (FLOPs per Joule)
   const baseEfficiency = 6.59e11; // FLOPs per Joule (conservative estimate)
